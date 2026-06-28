@@ -29,7 +29,9 @@ _G.EngineConfig = {
     NoRecoilActive = false,
     KillDeathStatsActive = false,
     ConfigSaveActive = false,
-    AutoUpdateActive = false
+    AutoUpdateActive = false,
+    MenuDraggable = true,
+    MenuPosition = UDim2.new(0.5, 0, 0.5, 0)
 }
 
 local Camera = workspace.CurrentCamera
@@ -47,6 +49,9 @@ local CurrentPing = 0
 local KillCount = 0
 local DeathCount = 0
 local ESPCache = {}
+local MenuDragging = false
+local MenuDragStart = nil
+local MenuStartPos = nil
 
 -- FPS Counter
 RunService.RenderStepped:Connect(function()
@@ -468,7 +473,7 @@ local function LoadConfig(ConfigName)
 end
 
 -- =============== AUTO UPDATE ===============
-local ScriptVersion = "2.0"
+local ScriptVersion = "2.1"
 local function CheckForUpdates()
     OrionLib:MakeNotification({
         Name = "🔄 Update Check",
@@ -514,12 +519,61 @@ end)
 
 -- =============== WINDOW & TABS ===============
 local Window = OrionLib:MakeWindow({
-    Name = "🚀 Full Exploit Sandbox Hub v2.0", 
+    Name = "🚀 Full Exploit Sandbox Hub v2.1", 
     HidePremium = true, 
     SaveConfig = false,
     IntroText = "Đang Đồng Bộ Hóa Hệ Thống..."
 })
 
+-- =============== MENU CONTROL TAB (FIXED) ===============
+local MenuTab = Window:MakeTab({ Name = "🎮 Menu Control", Icon = "⚙️" })
+
+MenuTab:AddParagraph("📍 Điều Khiển Menu", "Di chuyển và điều chỉnh vị trí menu của bạn")
+
+MenuTab:AddButton({
+	Name = "🔓 Bật Chế Độ Di Chuyển Menu",
+	Callback = function()
+		_G.EngineConfig.MenuDraggable = true
+		OrionLib:MakeNotification({
+            Name = "✅ Menu Draggable",
+            Content = "Menu giờ đã có thể di chuyển được!",
+            Image = "rbxassetid://4483345998",
+            Time = 3
+        })
+	end
+})
+
+MenuTab:AddButton({
+	Name = "🔒 Tắt Chế Độ Di Chuyển Menu",
+	Callback = function()
+		_G.EngineConfig.MenuDraggable = false
+		OrionLib:MakeNotification({
+            Name = "❌ Menu Locked",
+            Content = "Menu đã bị khóa!",
+            Image = "rbxassetid://4483345998",
+            Time = 3
+        })
+	end
+})
+
+MenuTab:AddButton({
+	Name = "🔄 Reset Vị Trí Menu",
+	Callback = function()
+		_G.EngineConfig.MenuPosition = UDim2.new(0.5, 0, 0.5, 0)
+		OrionLib:MakeNotification({
+            Name = "🔄 Reset Position",
+            Content = "Vị trí menu đã được reset về giữa màn hình!",
+            Image = "rbxassetid://4483345998",
+            Time = 3
+        })
+	end
+})
+
+MenuTab:AddParagraph("---","---")
+
+MenuTab:AddParagraph("💡 Hướng Dẫn", "Bấm vào tiêu đề menu (phần màu xanh) và kéo để di chuyển")
+
+-- =============== COMBAT TAB ===============
 local CombatTab = Window:MakeTab({ Name = "Combat (Chiến Đấu)", Icon = "⚔️" })
 
 CombatTab:AddToggle({
@@ -566,6 +620,7 @@ CombatTab:AddToggle({
 	Callback = function(Value) _G.EngineConfig.TeamCheck = Value end
 })
 
+-- =============== VISUAL TAB ===============
 local VisualTab = Window:MakeTab({ Name = "Visual & Hitbox", Icon = "👁️" })
 
 VisualTab:AddToggle({
@@ -699,6 +754,7 @@ VisualTab:AddDropdown({
 	Callback = function(Value) _G.EngineConfig.HitboxPart = Value end
 })
 
+-- =============== WEAPON TAB ===============
 local UtilityTab = Window:MakeTab({ Name = "Weapon & Player", Icon = "🔫" })
 
 UtilityTab:AddToggle({
@@ -1055,3 +1111,26 @@ ConfigTab:AddButton({
 })
 
 OrionLib:Init()
+
+-- =============== MENU DRAG FUNCTIONALITY ===============
+local Mouse = LocalPlayer:GetMouse()
+
+Mouse.Button1Down:Connect(function()
+    if _G.EngineConfig.MenuDraggable then
+        MenuDragging = true
+        MenuDragStart = Mouse.Position
+        MenuStartPos = Window.Main.Position
+    end
+end)
+
+Mouse.Button1Up:Connect(function()
+    MenuDragging = false
+end)
+
+Mouse.Move:Connect(function()
+    if MenuDragging and MenuDragStart and MenuStartPos then
+        local DeltaX = Mouse.X - MenuDragStart.X
+        local DeltaY = Mouse.Y - MenuDragStart.Y
+        Window.Main.Position = UDim2.new(MenuStartPos.X.Scale, MenuStartPos.X.Offset + DeltaX, MenuStartPos.Y.Scale, MenuStartPos.Y.Offset + DeltaY)
+    end
+end)
