@@ -1,0 +1,259 @@
+local OrionLib = loadstring(game:HttpGet(('https://raw.githubusercontent.com/jensonhirst/Orion/main/source')))()
+
+_G.EngineConfig = {
+    AimbotActive = false,
+    SilentAimActive = false,
+    SmoothActive = false,
+    ESPActive = false,
+    HitboxActive = false,
+    WeaponModActive = false,
+    AimFOV = 150,
+    SmoothValue = 5,
+    HitboxSize = 2,
+    HitboxPart = "HumanoidRootPart",
+    TeamCheck = true
+}
+
+local Camera = workspace.CurrentCamera
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Color = Color3.fromRGB(255, 65, 65)
+FOVCircle.Thickness = 2
+FOVCircle.NumSides = 60
+FOVCircle.Radius = _G.EngineConfig.AimFOV
+FOVCircle.Filled = false
+FOVCircle.Visible = false
+
+RunService.RenderStepped:Connect(function()
+    local ViewportSize = Camera.ViewportSize
+    FOVCircle.Position = Vector2.new(ViewportSize.X / 2, ViewportSize.Y / 2)
+    FOVCircle.Radius = _G.EngineConfig.AimFOV
+    FOVCircle.Visible = (_G.EngineConfig.AimbotActive or _G.EngineConfig.SilentAimActive)
+end)
+
+local function GetClosestTarget()
+    local CurrentTarget = nil
+    local ShortestDistance = _G.EngineConfig.AimFOV
+
+    for _, Player in pairs(Players:GetPlayers()) do
+        if Player ~= LocalPlayer and Player.Character and Player.Character:FindFirstChild("Head") then
+            if _G.EngineConfig.TeamCheck and Player.Team == LocalPlayer.Team then continue end
+            if Player.Character:FindFirstChildOfClass("Humanoid") and Player.Character.Humanoid.Health <= 0 then continue end
+
+            local Point, OnScreen = Camera:WorldToViewportPoint(Player.Character.Head.Position)
+            
+            if OnScreen then
+                local ScreenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+                local Distance = (Vector2.new(Point.X, Point.Y) - ScreenCenter).Magnitude
+                
+                if Distance < ShortestDistance then
+                    CurrentTarget = Player
+                    ShortestDistance = Distance
+                end
+            end
+        end
+    end
+    return CurrentTarget
+end
+
+RunService.RenderStepped:Connect(function()
+    if _G.EngineConfig.AimbotActive then
+        local Target = GetClosestTarget()
+        if Target and Target.Character and Target.Character:FindFirstChild("Head") then
+            local TargetCFrame = CFrame.new(Camera.CFrame.Position, Target.Character.Head.Position)
+            if _G.EngineConfig.SmoothActive then
+                Camera.CFrame = Camera.CFrame:lerp(TargetCFrame, 1 / _G.EngineConfig.SmoothValue)
+            else
+                Camera.CFrame = TargetCFrame
+            end
+        end
+    end
+end)
+
+local RawMetatable = getrawmetatable(game)
+local OldIndex = RawMetatable.__index
+setreadonly(RawMetatable, false)
+
+RawMetatable.__index = newcclosure(function(Object, Key)
+    if _G.EngineConfig.SilentAimActive and Object == LocalPlayer:GetMouse() and (Key == "Hit" or Key == "Target") then
+        local Target = GetClosestTarget()
+        if Target and Target.Character and Target.Character:FindFirstChild("Head") then
+            return (Key == "Hit" and Target.Character.Head.CFrame or Target.Character.Head)
+        end
+    end
+    return OldIndex(Object, Key)
+end)
+setreadonly(RawMetatable, true)
+
+local Window = OrionLib:MakeWindow({
+    Name = "🚀 Full Exploit Sandbox Hub", 
+    HidePremium = true, 
+    SaveConfig = false,
+    IntroText = "Đang Đồng Bộ Hóa Hệ Thống..."
+})
+
+local CombatTab = Window:MakeTab({ Name = "Combat (Chiến Đấu)", Icon = "" })
+
+CombatTab:AddToggle({
+	Name = "Bật Cam-Lock Aimbot (Khóa Camera)",
+	Default = false,
+	Callback = function(Value) _G.EngineConfig.AimbotActive = Value end
+})
+
+CombatTab:AddToggle({
+	Name = "Bật Chế Độ Aim Mượt (Smooth Aim)",
+	Default = false,
+	Callback = function(Value) _G.EngineConfig.SmoothActive = Value end
+})
+
+CombatTab:AddSlider({
+	Name = "Hệ Số Mượt (Smoothness)",
+	Min = 1, Max = 25, Default = 5, Increment = 1,
+	Callback = function(Value) _G.EngineConfig.SmoothValue = Value end    
+})
+
+CombatTab:AddParagraph("---","---")
+
+CombatTab:AddToggle({
+	Name = "Bật Silent Aim (Bẻ Hướng Đạn Vô Hình)",
+	Default = false,
+	Callback = function(Value) _G.EngineConfig.SilentAimActive = Value end
+})
+
+CombatTab:AddSlider({
+	Name = "Phạm Vi Vòng Quét FOV",
+	Min = 50, Max = 600, Default = 150, Increment = 10,
+	Callback = function(Value) _G.EngineConfig.AimFOV = Value end    
+})
+
+CombatTab:AddToggle({
+	Name = "Kiểm Tra Đồng Đội (Team Check)",
+	Default = true,
+	Callback = function(Value) _G.EngineConfig.TeamCheck = Value end
+})
+
+local VisualTab = Window:MakeTab({ Name = "Visual & Hitbox", Icon = "" })
+
+VisualTab:AddToggle({
+	Name = "Hiển Thị Vị Trí Xuyên Tường (Highlight ESP)",
+	Default = false,
+	Callback = function(Value)
+		_G.EngineConfig.ESPActive = Value
+        if not Value then
+            for _, player in pairs(Players:GetPlayers()) do
+                if player.Character and player.Character:FindFirstChild("EngineESP") then
+                    player.Character.EngineESP:Destroy()
+                end
+            end
+        else
+            spawn(function()
+                while _G.EngineConfig.ESPActive do
+                    for _, player in pairs(Players:GetPlayers()) do
+                        if player ~= LocalPlayer and player.Character and not player.Character:FindFirstChild("EngineESP") then
+                            if _G.EngineConfig.TeamCheck and player.Team == LocalPlayer.Team then continue end
+                            
+                            local Highlight = Instance.new("Highlight")
+                            Highlight.Name = "EngineESP"
+                            Highlight.FillColor = Color3.fromRGB(255, 0, 127)
+                            Highlight.FillTransparency = 0.4
+                            Highlight.Adornee = player.Character
+                            Highlight.Parent = player.Character
+                        end
+                    end
+                    task.wait(1.5)
+                end
+            end)
+        end
+	end
+})
+
+VisualTab:AddParagraph("---","---")
+
+VisualTab:AddToggle({
+	Name = "Kích Hoạt Mở Rộng Hitbox Vô Hình",
+	Default = false,
+	Callback = function(Value)
+		_G.EngineConfig.HitboxActive = Value
+        spawn(function()
+            while _G.EngineConfig.HitboxActive do
+                for _, player in pairs(Players:GetPlayers()) do
+                    if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild(_G.EngineConfig.HitboxPart) then
+                        if _G.EngineConfig.TeamCheck and player.Team == LocalPlayer.Team then continue end
+                        
+                        local Part = player.Character[_G.EngineConfig.HitboxPart]
+                        Part.Size = Vector3.new(_G.EngineConfig.HitboxSize, _G.EngineConfig.HitboxSize, _G.EngineConfig.HitboxSize)
+                        Part.Transparency = 0.6
+                        Part.Color = Color3.fromRGB(255, 255, 0)
+                        Part.CanCollide = false
+                    end
+                end
+                task.wait(1)
+            end
+        end)
+	end
+})
+
+VisualTab:AddSlider({
+	Name = "Độ Rộng Ma Trận Hitbox",
+	Min = 2, Max = 25, Default = 2, Increment = 1,
+	Callback = function(Value) _G.EngineConfig.HitboxSize = Value end    
+})
+
+VisualTab:AddDropdown({
+	Name = "Tâm Điểm Áp Dụng Hitbox",
+	Default = "HumanoidRootPart",
+	Options = {"HumanoidRootPart", "Head", "Torso"},
+	Callback = function(Value) _G.EngineConfig.HitboxPart = Value end
+})
+
+local UtilityTab = Window:MakeTab({ Name = "Weapon & Player", Icon = "" })
+
+UtilityTab:AddToggle({
+	Name = "Triệt Tiêu Độ Giật & Độ Lệch Tâm Súng",
+	Default = false,
+	Callback = function(Value)
+		_G.EngineConfig.WeaponModActive = Value
+        spawn(function()
+            while _G.EngineConfig.WeaponModActive do
+                local Tool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
+                if Tool then
+                    for _, v in pairs(Tool:GetDescendants()) do
+                        if v:IsA("NumberValue") or v:IsA("IntValue") then
+                            if v.Name:lower():find("recoil") or v.Name:lower():find("kick") or v.Name:lower():find("spread") then
+                                v.Value = 0
+                            end
+                        end
+                    end
+                end
+                task.wait(1.5)
+            end
+        end)
+	end
+})
+
+UtilityTab:AddParagraph("---","---")
+
+UtilityTab:AddSlider({
+	Name = "Tốc Độ Di Chuyển (WalkSpeed)",
+	Min = 16, Max = 150, Default = 16, Increment = 2,
+	Callback = function(Value)
+		if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.WalkSpeed = Value
+        end
+	end    
+})
+
+UtilityTab:AddSlider({
+	Name = "Lực Nhảy (JumpPower)",
+	Min = 50, Max = 250, Default = 50, Increment = 5,
+	Callback = function(Value)
+		if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.JumpPower = Value
+        end
+	end    
+})
+
+OrionLib:Init()
