@@ -19,7 +19,17 @@ _G.EngineConfig = {
     FPSCounterActive = false,
     PingDisplayActive = false,
     PlayerCountActive = false,
-    SessionTimerActive = false
+    SessionTimerActive = false,
+    DistanceESPActive = false,
+    HealthBarESPActive = false,
+    BoxESPActive = false,
+    NameTagESPActive = false,
+    BoneESPActive = false,
+    PredictionAimActive = false,
+    NoRecoilActive = false,
+    KillDeathStatsActive = false,
+    ConfigSaveActive = false,
+    AutoUpdateActive = false
 }
 
 local Camera = workspace.CurrentCamera
@@ -34,6 +44,9 @@ local AdminList = {}
 local SpectatorList = {}
 local CurrentFPS = 0
 local CurrentPing = 0
+local KillCount = 0
+local DeathCount = 0
+local ESPCache = {}
 
 -- FPS Counter
 RunService.RenderStepped:Connect(function()
@@ -44,11 +57,23 @@ end)
 spawn(function()
     while true do
         local Start = tick()
-        game:HttpGet("https://google.com")
+        pcall(function()
+            game:HttpGet("https://google.com")
+        end)
         CurrentPing = math.floor((tick() - Start) * 1000)
         task.wait(5)
     end
 end)
+
+-- Death Tracking
+if LocalPlayer.Character then
+    local Humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
+    if Humanoid then
+        Humanoid.Died:Connect(function()
+            DeathCount = DeathCount + 1
+        end)
+    end
+end
 
 -- =============== FOV CIRCLE ===============
 local FOVCircle = Drawing.new("Circle")
@@ -132,7 +157,6 @@ local function DetectAdmins()
     AdminList = {}
     for _, Player in pairs(Players:GetPlayers()) do
         if Player ~= LocalPlayer then
-            -- Kiểm tra nếu là admin (thường có tag hoặc username đặc biệt)
             if Player:FindFirstChild("leaderstats") then
                 for _, v in pairs(Player.leaderstats:GetChildren()) do
                     if v.Name:lower():find("admin") or v.Name:lower():find("mod") then
@@ -156,6 +180,304 @@ local function DetectSpectators()
     return SpectatorList
 end
 
+-- =============== DISTANCE ESP ===============
+local function CreateDistanceESP()
+    spawn(function()
+        while _G.EngineConfig.DistanceESPActive do
+            for _, Player in pairs(Players:GetPlayers()) do
+                if Player ~= LocalPlayer and Player.Character and Player.Character:FindFirstChild("Head") then
+                    if _G.EngineConfig.TeamCheck and Player.Team == LocalPlayer.Team then continue end
+                    
+                    local Distance = (LocalPlayer.Character.Head.Position - Player.Character.Head.Position).Magnitude
+                    local Point, OnScreen = Camera:WorldToViewportPoint(Player.Character.Head.Position)
+                    
+                    if OnScreen then
+                        if not ESPCache[Player] then
+                            ESPCache[Player] = Drawing.new("Text")
+                        end
+                        
+                        local TextDraw = ESPCache[Player]
+                        TextDraw.Text = math.floor(Distance) .. "m"
+                        TextDraw.Position = Vector2.new(Point.X, Point.Y)
+                        TextDraw.Color = Color3.fromRGB(0, 255, 0)
+                        TextDraw.Size = 18
+                        TextDraw.Visible = true
+                    end
+                end
+            end
+            task.wait(0.1)
+        end
+        for _, Draw in pairs(ESPCache) do
+            pcall(function() Draw:Remove() end)
+        end
+        ESPCache = {}
+    end)
+end
+
+-- =============== HEALTH BAR ESP ===============
+local function CreateHealthBarESP()
+    spawn(function()
+        while _G.EngineConfig.HealthBarESPActive do
+            for _, Player in pairs(Players:GetPlayers()) do
+                if Player ~= LocalPlayer and Player.Character and Player.Character:FindFirstChild("Head") then
+                    if _G.EngineConfig.TeamCheck and Player.Team == LocalPlayer.Team then continue end
+                    
+                    local Humanoid = Player.Character:FindFirstChild("Humanoid")
+                    if Humanoid then
+                        local Point, OnScreen = Camera:WorldToViewportPoint(Player.Character.Head.Position)
+                        
+                        if OnScreen then
+                            local HealthPercent = Humanoid.Health / Humanoid.MaxHealth
+                            
+                            if not ESPCache[Player .. "_health"] then
+                                ESPCache[Player .. "_health"] = Drawing.new("Rectangle")
+                            end
+                            
+                            local BarDraw = ESPCache[Player .. "_health"]
+                            BarDraw.Width = 50
+                            BarDraw.Height = 5
+                            BarDraw.Position = Vector2.new(Point.X - 25, Point.Y + 30)
+                            BarDraw.Color = Color3.fromRGB(255, 0, 0)
+                            BarDraw.Filled = true
+                            BarDraw.Visible = true
+                            
+                            if not ESPCache[Player .. "_health_fill"] then
+                                ESPCache[Player .. "_health_fill"] = Drawing.new("Rectangle")
+                            end
+                            
+                            local FillDraw = ESPCache[Player .. "_health_fill"]
+                            FillDraw.Width = 50 * HealthPercent
+                            FillDraw.Height = 5
+                            FillDraw.Position = Vector2.new(Point.X - 25, Point.Y + 30)
+                            FillDraw.Color = Color3.fromRGB(0, 255, 0)
+                            FillDraw.Filled = true
+                            FillDraw.Visible = true
+                        end
+                    end
+                end
+            end
+            task.wait(0.1)
+        end
+    end)
+end
+
+-- =============== BOX ESP ===============
+local function CreateBoxESP()
+    spawn(function()
+        while _G.EngineConfig.BoxESPActive do
+            for _, Player in pairs(Players:GetPlayers()) do
+                if Player ~= LocalPlayer and Player.Character and Player.Character:FindFirstChild("Head") then
+                    if _G.EngineConfig.TeamCheck and Player.Team == LocalPlayer.Team then continue end
+                    
+                    local Head = Player.Character.Head
+                    local Point, OnScreen = Camera:WorldToViewportPoint(Head.Position)
+                    
+                    if OnScreen then
+                        if not ESPCache[Player .. "_box"] then
+                            ESPCache[Player .. "_box"] = Drawing.new("Square")
+                        end
+                        
+                        local BoxDraw = ESPCache[Player .. "_box"]
+                        BoxDraw.Size = 50
+                        BoxDraw.Position = Vector2.new(Point.X - 25, Point.Y - 25)
+                        BoxDraw.Color = Color3.fromRGB(255, 255, 0)
+                        BoxDraw.Thickness = 2
+                        BoxDraw.Filled = false
+                        BoxDraw.Visible = true
+                    end
+                end
+            end
+            task.wait(0.1)
+        end
+    end)
+end
+
+-- =============== NAME TAG ESP ===============
+local function CreateNameTagESP()
+    spawn(function()
+        while _G.EngineConfig.NameTagESPActive do
+            for _, Player in pairs(Players:GetPlayers()) do
+                if Player ~= LocalPlayer and Player.Character and Player.Character:FindFirstChild("Head") then
+                    if _G.EngineConfig.TeamCheck and Player.Team == LocalPlayer.Team then continue end
+                    
+                    local Point, OnScreen = Camera:WorldToViewportPoint(Player.Character.Head.Position)
+                    
+                    if OnScreen then
+                        if not ESPCache[Player .. "_name"] then
+                            ESPCache[Player .. "_name"] = Drawing.new("Text")
+                        end
+                        
+                        local NameDraw = ESPCache[Player .. "_name"]
+                        NameDraw.Text = Player.Name
+                        NameDraw.Position = Vector2.new(Point.X, Point.Y - 40)
+                        NameDraw.Color = Color3.fromRGB(255, 255, 255)
+                        NameDraw.Size = 16
+                        NameDraw.Visible = true
+                    end
+                end
+            end
+            task.wait(0.1)
+        end
+    end)
+end
+
+-- =============== BONE ESP ===============
+local function CreateBoneESP()
+    spawn(function()
+        while _G.EngineConfig.BoneESPActive do
+            for _, Player in pairs(Players:GetPlayers()) do
+                if Player ~= LocalPlayer and Player.Character then
+                    if _G.EngineConfig.TeamCheck and Player.Team == LocalPlayer.Team then continue end
+                    
+                    for _, Part in pairs(Player.Character:GetChildren()) do
+                        if Part:IsA("BasePart") then
+                            local Point, OnScreen = Camera:WorldToViewportPoint(Part.Position)
+                            
+                            if OnScreen then
+                                local CacheKey = Player .. "_" .. Part.Name
+                                if not ESPCache[CacheKey] then
+                                    ESPCache[CacheKey] = Drawing.new("Circle")
+                                end
+                                
+                                local BoneDraw = ESPCache[CacheKey]
+                                BoneDraw.Radius = 3
+                                BoneDraw.Position = Vector2.new(Point.X, Point.Y)
+                                BoneDraw.Color = Color3.fromRGB(0, 0, 255)
+                                BoneDraw.Filled = true
+                                BoneDraw.Visible = true
+                            end
+                        end
+                    end
+                end
+            end
+            task.wait(0.1)
+        end
+    end)
+end
+
+-- =============== PREDICTION AIM ===============
+local function GetPredictionTarget()
+    local Target = GetClosestTarget()
+    if Target and Target.Character then
+        local Head = Target.Character.Head
+        local Humanoid = Target.Character:FindFirstChild("Humanoid")
+        
+        if Humanoid and Humanoid.Parent:FindFirstChild("Humanoid") then
+            local Velocity = Head.AssemblyLinearVelocity
+            local Distance = (LocalPlayer.Character.Head.Position - Head.Position).Magnitude
+            local PredictedPos = Head.Position + (Velocity * (Distance / 100))
+            
+            return CFrame.new(Camera.CFrame.Position, PredictedPos)
+        end
+    end
+    return nil
+end
+
+RunService.RenderStepped:Connect(function()
+    if _G.EngineConfig.PredictionAimActive then
+        local PredictedCFrame = GetPredictionTarget()
+        if PredictedCFrame then
+            if _G.EngineConfig.SmoothActive then
+                Camera.CFrame = Camera.CFrame:lerp(PredictedCFrame, 1 / _G.EngineConfig.SmoothValue)
+            else
+                Camera.CFrame = PredictedCFrame
+            end
+        end
+    end
+end)
+
+-- =============== NO RECOIL ===============
+RunService.RenderStepped:Connect(function()
+    if _G.EngineConfig.NoRecoilActive then
+        local Tool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
+        if Tool then
+            for _, v in pairs(Tool:GetDescendants()) do
+                if v:IsA("NumberValue") or v:IsA("IntValue") then
+                    if v.Name:lower():find("recoil") or v.Name:lower():find("kick") then
+                        v.Value = 0
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- =============== KILL/DEATH STATS ===============
+local function DisplayKDStats()
+    OrionLib:MakeNotification({
+        Name = "📊 K/D Stats",
+        Content = "Kills: " .. KillCount .. " | Deaths: " .. DeathCount .. " | Ratio: " .. (DeathCount > 0 and math.floor(KillCount / DeathCount * 100) / 100 or KillCount),
+        Image = "rbxassetid://4483345998",
+        Time = 5
+    })
+end
+
+-- =============== CONFIG SAVE/LOAD ===============
+local ConfigData = {}
+
+local function SaveConfig(ConfigName)
+    ConfigData[ConfigName] = {
+        AimbotActive = _G.EngineConfig.AimbotActive,
+        SilentAimActive = _G.EngineConfig.SilentAimActive,
+        SmoothActive = _G.EngineConfig.SmoothActive,
+        SmoothValue = _G.EngineConfig.SmoothValue,
+        AimFOV = _G.EngineConfig.AimFOV,
+        DistanceESPActive = _G.EngineConfig.DistanceESPActive,
+        HealthBarESPActive = _G.EngineConfig.HealthBarESPActive,
+        BoxESPActive = _G.EngineConfig.BoxESPActive,
+        NoRecoilActive = _G.EngineConfig.NoRecoilActive,
+        TeamCheck = _G.EngineConfig.TeamCheck
+    }
+    
+    OrionLib:MakeNotification({
+        Name = "💾 Config Saved",
+        Content = "Config '" .. ConfigName .. "' đã được lưu!",
+        Image = "rbxassetid://4483345998",
+        Time = 3
+    })
+end
+
+local function LoadConfig(ConfigName)
+    if ConfigData[ConfigName] then
+        local Config = ConfigData[ConfigName]
+        _G.EngineConfig.AimbotActive = Config.AimbotActive
+        _G.EngineConfig.SilentAimActive = Config.SilentAimActive
+        _G.EngineConfig.SmoothActive = Config.SmoothActive
+        _G.EngineConfig.SmoothValue = Config.SmoothValue
+        _G.EngineConfig.AimFOV = Config.AimFOV
+        _G.EngineConfig.DistanceESPActive = Config.DistanceESPActive
+        _G.EngineConfig.HealthBarESPActive = Config.HealthBarESPActive
+        _G.EngineConfig.BoxESPActive = Config.BoxESPActive
+        _G.EngineConfig.NoRecoilActive = Config.NoRecoilActive
+        _G.EngineConfig.TeamCheck = Config.TeamCheck
+        
+        OrionLib:MakeNotification({
+            Name = "📂 Config Loaded",
+            Content = "Config '" .. ConfigName .. "' đã được tải!",
+            Image = "rbxassetid://4483345998",
+            Time = 3
+        })
+    else
+        OrionLib:MakeNotification({
+            Name = "❌ Error",
+            Content = "Config '" .. ConfigName .. "' không tồn tại!",
+            Image = "rbxassetid://4483345998",
+            Time = 3
+        })
+    end
+end
+
+-- =============== AUTO UPDATE ===============
+local ScriptVersion = "2.0"
+local function CheckForUpdates()
+    OrionLib:MakeNotification({
+        Name = "🔄 Update Check",
+        Content = "Phiên bản hiện tại: " .. ScriptVersion,
+        Image = "rbxassetid://4483345998",
+        Time = 3
+    })
+end
+
 -- =============== PANIC BUTTON ===============
 local function PanicMode()
     _G.EngineConfig.AimbotActive = false
@@ -166,15 +488,23 @@ local function PanicMode()
     _G.EngineConfig.WeaponModActive = false
     _G.EngineConfig.AdminDetectionActive = false
     _G.EngineConfig.SpectatorWarningActive = false
-    _G.EngineConfig.FPSCounterActive = false
-    _G.EngineConfig.PingDisplayActive = false
-    _G.EngineConfig.PlayerCountActive = false
-    _G.EngineConfig.SessionTimerActive = false
+    _G.EngineConfig.DistanceESPActive = false
+    _G.EngineConfig.HealthBarESPActive = false
+    _G.EngineConfig.BoxESPActive = false
+    _G.EngineConfig.NameTagESPActive = false
+    _G.EngineConfig.BoneESPActive = false
+    _G.EngineConfig.PredictionAimActive = false
+    _G.EngineConfig.NoRecoilActive = false
     FOVCircle.Visible = false
+    
+    for _, Draw in pairs(ESPCache) do
+        pcall(function() Draw:Remove() end)
+    end
+    ESPCache = {}
+    
     print("⚠️ PANIC MODE ACTIVATED - Tất cả tính năng đã bị tắt!")
 end
 
--- Hotkey Panic Button (Default: F6)
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if input.KeyCode == Enum.KeyCode.F6 then
@@ -184,13 +514,13 @@ end)
 
 -- =============== WINDOW & TABS ===============
 local Window = OrionLib:MakeWindow({
-    Name = "🚀 Full Exploit Sandbox Hub", 
+    Name = "🚀 Full Exploit Sandbox Hub v2.0", 
     HidePremium = true, 
     SaveConfig = false,
     IntroText = "Đang Đồng Bộ Hóa Hệ Thống..."
 })
 
-local CombatTab = Window:MakeTab({ Name = "Combat (Chiến Đấu)", Icon = "" })
+local CombatTab = Window:MakeTab({ Name = "Combat (Chiến Đấu)", Icon = "⚔️" })
 
 CombatTab:AddToggle({
 	Name = "Bật Cam-Lock Aimbot (Khóa Camera)",
@@ -218,6 +548,12 @@ CombatTab:AddToggle({
 	Callback = function(Value) _G.EngineConfig.SilentAimActive = Value end
 })
 
+CombatTab:AddToggle({
+	Name = "🎯 Prediction Aim (Dự Đoán Vị Trí)",
+	Default = false,
+	Callback = function(Value) _G.EngineConfig.PredictionAimActive = Value end
+})
+
 CombatTab:AddSlider({
 	Name = "Phạm Vi Vòng Quét FOV",
 	Min = 50, Max = 600, Default = 150, Increment = 10,
@@ -230,7 +566,7 @@ CombatTab:AddToggle({
 	Callback = function(Value) _G.EngineConfig.TeamCheck = Value end
 })
 
-local VisualTab = Window:MakeTab({ Name = "Visual & Hitbox", Icon = "" })
+local VisualTab = Window:MakeTab({ Name = "Visual & Hitbox", Icon = "👁️" })
 
 VisualTab:AddToggle({
 	Name = "Hiển Thị Vị Trí Xuyên Tường (Highlight ESP)",
@@ -263,6 +599,61 @@ VisualTab:AddToggle({
                     task.wait(1.5)
                 end
             end)
+        end
+	end
+})
+
+VisualTab:AddToggle({
+	Name = "📏 Distance ESP (Khoảng Cách)",
+	Default = false,
+	Callback = function(Value)
+		_G.EngineConfig.DistanceESPActive = Value
+        if Value then
+            CreateDistanceESP()
+        end
+	end
+})
+
+VisualTab:AddToggle({
+	Name = "❤️ Health Bar ESP (Thanh Máu)",
+	Default = false,
+	Callback = function(Value)
+		_G.EngineConfig.HealthBarESPActive = Value
+        if Value then
+            CreateHealthBarESP()
+        end
+	end
+})
+
+VisualTab:AddToggle({
+	Name = "📦 Box ESP (Khung Quanh)",
+	Default = false,
+	Callback = function(Value)
+		_G.EngineConfig.BoxESPActive = Value
+        if Value then
+            CreateBoxESP()
+        end
+	end
+})
+
+VisualTab:AddToggle({
+	Name = "🏷️ Name Tag ESP (Tên Player)",
+	Default = false,
+	Callback = function(Value)
+		_G.EngineConfig.NameTagESPActive = Value
+        if Value then
+            CreateNameTagESP()
+        end
+	end
+})
+
+VisualTab:AddToggle({
+	Name = "🦴 Bone ESP (Xương)",
+	Default = false,
+	Callback = function(Value)
+		_G.EngineConfig.BoneESPActive = Value
+        if Value then
+            CreateBoneESP()
         end
 	end
 })
@@ -308,7 +699,13 @@ VisualTab:AddDropdown({
 	Callback = function(Value) _G.EngineConfig.HitboxPart = Value end
 })
 
-local UtilityTab = Window:MakeTab({ Name = "Weapon & Player", Icon = "" })
+local UtilityTab = Window:MakeTab({ Name = "Weapon & Player", Icon = "🔫" })
+
+UtilityTab:AddToggle({
+	Name = "🔧 No Recoil (Loại Bỏ Giật)",
+	Default = false,
+	Callback = function(Value) _G.EngineConfig.NoRecoilActive = Value end
+})
 
 UtilityTab:AddToggle({
 	Name = "Triệt Tiêu Độ Giật & Độ Lệch Tâm Súng",
@@ -581,6 +978,79 @@ StatsTab:AddButton({
             Image = "rbxassetid://4483345998",
             Time = 5
         })
+	end
+})
+
+-- =============== CONFIG & UPDATES TAB ===============
+local ConfigTab = Window:MakeTab({ Name = "💾 Config & Updates", Icon = "⚙️" })
+
+ConfigTab:AddParagraph("Save Config", "Lưu các cấu hình của bạn để sử dụng sau")
+
+ConfigTab:AddTextbox({
+	Name = "Tên Config",
+	Default = "MyConfig",
+	TextDisappear = false,
+	Callback = function(Value)
+		_G.ConfigName = Value
+	end	
+})
+
+ConfigTab:AddButton({
+	Name = "💾 Lưu Config",
+	Callback = function()
+		if _G.ConfigName and _G.ConfigName ~= "" then
+			SaveConfig(_G.ConfigName)
+		end
+	end
+})
+
+ConfigTab:AddParagraph("---","---")
+
+ConfigTab:AddButton({
+	Name = "📂 Tải Config",
+	Callback = function()
+		if _G.ConfigName and _G.ConfigName ~= "" then
+			LoadConfig(_G.ConfigName)
+		end
+	end
+})
+
+ConfigTab:AddParagraph("---","---")
+
+ConfigTab:AddButton({
+	Name = "📋 Danh Sách Config",
+	Callback = function()
+		local ConfigList = ""
+		for Name, _ in pairs(ConfigData) do
+			ConfigList = ConfigList .. Name .. " | "
+		end
+		
+		if ConfigList == "" then
+			ConfigList = "Không có config nào"
+		end
+		
+		OrionLib:MakeNotification({
+			Name = "Config List",
+			Content = ConfigList,
+			Image = "rbxassetid://4483345998",
+			Time = 5
+		})
+	end
+})
+
+ConfigTab:AddParagraph("---","---")
+
+ConfigTab:AddButton({
+	Name = "🔄 Kiểm Tra Cập Nhật",
+	Callback = function()
+		CheckForUpdates()
+	end
+})
+
+ConfigTab:AddButton({
+	Name = "📊 Xem K/D Stats",
+	Callback = function()
+		DisplayKDStats()
 	end
 })
 
