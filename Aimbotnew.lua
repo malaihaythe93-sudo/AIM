@@ -40,8 +40,12 @@ local function GetClosestTarget()
 
     for _, Player in pairs(Players:GetPlayers()) do
         if Player ~= LocalPlayer and Player.Character and Player.Character:FindFirstChild("Head") then
-            if _G.EngineConfig.TeamCheck and Player.Team == LocalPlayer.Team then continue end
-            if Player.Character:FindFirstChildOfClass("Humanoid") and Player.Character.Humanoid.Health <= 0 then continue end
+            if _G.EngineConfig.TeamCheck and Player.Team == LocalPlayer.Team then 
+                continue 
+            end
+            if Player.Character:FindFirstChildOfClass("Humanoid") and Player.Character.Humanoid.Health <= 0 then 
+                continue 
+            end
 
             local Point, OnScreen = Camera:WorldToViewportPoint(Player.Character.Head.Position)
             
@@ -153,7 +157,9 @@ VisualTab:AddToggle({
                 while _G.EngineConfig.ESPActive do
                     for _, player in pairs(Players:GetPlayers()) do
                         if player ~= LocalPlayer and player.Character and not player.Character:FindFirstChild("EngineESP") then
-                            if _G.EngineConfig.TeamCheck and player.Team == LocalPlayer.Team then continue end
+                            if _G.EngineConfig.TeamCheck and player.Team == LocalPlayer.Team then 
+                                continue 
+                            end
                             
                             local Highlight = Instance.new("Highlight")
                             Highlight.Name = "EngineESP"
@@ -181,7 +187,9 @@ VisualTab:AddToggle({
             while _G.EngineConfig.HitboxActive do
                 for _, player in pairs(Players:GetPlayers()) do
                     if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild(_G.EngineConfig.HitboxPart) then
-                        if _G.EngineConfig.TeamCheck and player.Team == LocalPlayer.Team then continue end
+                        if _G.EngineConfig.TeamCheck and player.Team == LocalPlayer.Team then 
+                            continue 
+                        end
                         
                         local Part = player.Character[_G.EngineConfig.HitboxPart]
                         Part.Size = Vector3.new(_G.EngineConfig.HitboxSize, _G.EngineConfig.HitboxSize, _G.EngineConfig.HitboxSize)
@@ -247,11 +255,11 @@ UtilityTab:AddSlider({
 })
 
 UtilityTab:AddSlider({
-	Name = "Lực Nhảy (JumpPower)",
-	Min = 50, Max = 250, Default = 50, Increment = 5,
+	Name = "Lực Nhảy (JumpHeight)",
+	Min = 7.2, Max = 50, Default = 7.2, Increment = 1,
 	Callback = function(Value)
 		if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-            LocalPlayer.Character.Humanoid.JumpPower = Value
+            LocalPlayer.Character.Humanoid.JumpHeight = Value
         end
 	end    
 })
